@@ -5,7 +5,7 @@
   gather_facts: yes
   
   vars:
-    # Credenziali (modifica secondo necessità)
+    # Credenziali (modifica secondo necessitÃ )
     ksc_password: "KSCAdmin123!"
     db_password: "KSCAdmin123!"
     web_admin_user: "Administrator"
@@ -17,13 +17,13 @@
     web_console_download_url: "https://products.s.kaspersky-labs.com/administrationkit/ksc10/15.4.0.8952/english-25132578-en/313031343938397c44454c7c31/ksc-web-console-15.4.1021.x86_64.deb"
 
   tasks:
-    - name: "📋 INIZIO PREPARAZIONE SISTEMA"
+    - name: "ðŸ“‹ INIZIO PREPARAZIONE SISTEMA"
       debug:
         msg: |
-          🚀 Avvio preparazione sistema per KSC {{ ksc_version }}
-          🎯 Target: {{ inventory_hostname }}
-          🗄️ Database: PostgreSQL
-          👤 Admin: {{ web_admin_user }}
+          ðŸš€ Avvio preparazione sistema per KSC {{ ksc_version }}
+          ðŸŽ¯ Target: {{ inventory_hostname }}
+          ðŸ—„ï¸ Database: PostgreSQL
+          ðŸ‘¤ Admin: {{ web_admin_user }}
 
     # ===== VERIFICA SISTEMA =====
     - name: "Verifica sistema operativo"
@@ -32,15 +32,15 @@
           - ansible_os_family == "Debian"
           - ansible_distribution == "Ubuntu"
         fail_msg: "Sistema operativo non supportato. Richiesto Ubuntu."
-        success_msg: "✅ Sistema operativo compatibile: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+        success_msg: "âœ… Sistema operativo compatibile: {{ ansible_distribution }} {{ ansible_distribution_version }}"
 
     - name: "Verifica requisiti sistema"
       debug:
         msg: |
           Sistema rilevato:
           - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-          - RAM: {{ ansible_memtotal_mb }}MB {% if ansible_memtotal_mb < 4096 %}(⚠️  Raccomandati almeno 4GB){% else %}(✅ OK){% endif %}
-          - CPU: {{ ansible_processor_vcpus }} core{% if ansible_processor_vcpus < 2 %}s (⚠️  Raccomandati almeno 2 core){% else %}s (✅ OK){% endif %}
+          - RAM: {{ ansible_memtotal_mb }}MB {% if ansible_memtotal_mb < 4096 %}(âš ï¸  Raccomandati almeno 4GB){% else %}(âœ… OK){% endif %}
+          - CPU: {{ ansible_processor_vcpus }} core{% if ansible_processor_vcpus < 2 %}s (âš ï¸  Raccomandati almeno 2 core){% else %}s (âœ… OK){% endif %}
           - Spazio: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | first).size_available // 1024**3 }}GB disponibili
 
     # ===== AGGIORNAMENTO SISTEMA =====
@@ -82,7 +82,7 @@
         maintenance_work_mem_mb: "{{ (ansible_memtotal_mb * 0.05) | int }}"
         wal_buffers_mb: "16"
 
-    - name: "✅ Ottimizza configurazione PostgreSQL per KSC"
+    - name: "âœ… Ottimizza configurazione PostgreSQL per KSC"
       blockinfile:
         path: "{{ pg_config_path }}/postgresql.conf"
         block: |
@@ -158,7 +158,7 @@
       register: user_group_result
       changed_when: true
 
-    - name: "✅ Crea utente PostgreSQL per KSC"
+    - name: "âœ… Crea utente PostgreSQL per KSC"
       shell: |
         sudo -u postgres psql -c "CREATE USER ksc WITH PASSWORD '{{ db_password }}' CREATEDB;" || 
         sudo -u postgres psql -c "ALTER USER ksc WITH PASSWORD '{{ db_password }}' CREATEDB;"
@@ -166,7 +166,7 @@
       failed_when: false
       changed_when: "'CREATE ROLE' in create_user_result.stdout"
 
-    - name: "✅ Crea database KAV"
+    - name: "âœ… Crea database KAV"
       shell: |
         sudo -u postgres psql -c "CREATE DATABASE \"KAV\" OWNER ksc ENCODING 'UTF-8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8' TEMPLATE template0;" ||
         sudo -u postgres psql -c "ALTER DATABASE \"KAV\" OWNER TO ksc;"
@@ -181,7 +181,7 @@
       failed_when: false
       changed_when: "'GRANT' in grant_privs_result.stdout"
 
-    - name: "✅ Verifica connessione database"
+    - name: "âœ… Verifica connessione database"
       shell: |
         PGPASSWORD='{{ db_password }}' psql -h localhost -U ksc -d KAV -c "SELECT version();"
       register: db_test
@@ -189,7 +189,7 @@
 
     - name: "Controlla risultato connessione DB"
       debug:
-        msg: "{% if db_test.failed %}❌ ERRORE connessione DB{% else %}✅ Database configurato correttamente{% endif %}"
+        msg: "{% if db_test.failed %}âŒ ERRORE connessione DB{% else %}âœ… Database configurato correttamente{% endif %}"
       failed_when: db_test.failed
 
     # ===== DOWNLOAD PACCHETTI =====
@@ -201,7 +201,7 @@
         owner: root
         group: root
 
-    - name: "⬇️  Scarica pacchetto KSC Server ({{ (ksc_download_url.split('/')[-1].split('_')[1]) }})"
+    - name: "â¬‡ï¸  Scarica pacchetto KSC Server ({{ (ksc_download_url.split('/')[-1].split('_')[1]) }})"
       get_url:
         url: "{{ ksc_download_url }}"
         dest: "/tmp/ksc_install/ksc64_{{ ksc_version }}_amd64.deb"
@@ -212,7 +212,7 @@
       retries: 3
       delay: 10
 
-    - name: "⬇️  Scarica pacchetto Web Console"
+    - name: "â¬‡ï¸  Scarica pacchetto Web Console"
       get_url:
         url: "{{ web_console_download_url }}"
         dest: "/tmp/ksc_install/ksc-web-console.deb"
@@ -223,37 +223,8 @@
       retries: 3
       delay: 10
 
-    # ===== INSTALLAZIONE PACCHETTO KSC =====
-    - name: "📦 Installa pacchetto KSC Server"
-      shell: |
-        cd /tmp/ksc_install
-        dpkg -i ksc64_{{ ksc_version }}_amd64.deb || true
-        apt-get install -f -y
-      register: ksc_install_result
-      failed_when: false
-
-    - name: "Verifica installazione KSC"
-      shell: "dpkg -l | grep ksc64"
-      register: ksc_check
-      failed_when: false
-
-    - name: "Controlla risultato installazione KSC"
-      debug:
-        msg: "{% if ksc_check.failed %}❌ ERRORE installazione KSC{% else %}✅ Pacchetto KSC installato correttamente{% endif %}"
-      failed_when: ksc_check.failed
-
-    - name: "Verifica presenza postinstall.pl"
-      stat:
-        path: /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl
-      register: postinstall_check
-
-    - name: "Conferma postinstall.pl pronto"
-      debug:
-        msg: "{% if postinstall_check.stat.exists %}✅ File postinstall.pl trovato e pronto per configurazione{% else %}❌ File postinstall.pl non trovato{% endif %}"
-      failed_when: not postinstall_check.stat.exists
-
     # ===== FILE CONFIGURAZIONE =====
-    - name: "📝 Prepara configurazione Web Console"
+    - name: "ðŸ“ Prepara configurazione Web Console"
       copy:
         content: |
           {
@@ -267,7 +238,7 @@
         owner: root
         group: root
 
-    - name: "📝 Copia configurazione Web Console in /etc/"
+    - name: "ðŸ“ Copia configurazione Web Console in /etc/"
       copy:
         src: /tmp/ksc_install/ksc-web-console-setup.json
         dest: /etc/ksc-web-console-setup.json
@@ -276,31 +247,24 @@
         group: root
         remote_src: yes
 
-    - name: "📝 Crea script installazione manuale"
+    - name: "ðŸ“ Crea script installazione manuale"
       copy:
         content: |
           #!/bin/bash
           # Script per installazione manuale KSC
           # Generato automaticamente da Ansible
           
-          echo "🚀 === GUIDA PROSSIMI PASSI MANUALI KSC ==="
+          echo "ðŸš€ === GUIDA INSTALLAZIONE MANUALE KSC ==="
           echo
-          echo "📍 Directory corrente: $(pwd)"
-          echo "📦 File disponibili:"
+          echo "ðŸ“ Directory corrente: $(pwd)"
+          echo "ðŸ“¦ File disponibili:"
           ls -lh *.deb *.json 2>/dev/null || echo "Nessun file trovato"
           echo
-          echo "✅ COMPLETATO AUTOMATICAMENTE:"
-          echo "   - PostgreSQL configurato e ottimizzato"
-          echo "   - Database KAV creato"
-          echo "   - Utenti sistema (ksc, kladmins) configurati"
-          echo "   - Pacchetto KSC Server installato"
-          echo "   - File configurazione Web Console preparati"
+          echo "ðŸ“‹ === PASSAGGI INSTALLAZIONE ==="
           echo
-          echo "📋 === PASSI MANUALI RIMANENTI ==="
-          echo
-          echo "1️⃣  CONFIGURAZIONE KSC SERVER (WIZARD INTERATTIVO):"
-          echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
-          echo "    💡 Segui il wizard interattivo con queste risposte:"
+          echo "1ï¸âƒ£  INSTALLAZIONE KSC SERVER (INTERATTIVA):"
+          echo "    sudo dpkg -i ksc64_{{ ksc_version }}_amd64.deb"
+          echo "    ðŸ’¡ Segui il wizard interattivo con queste risposte:"
           echo ""
           echo "       EULA acceptance: Y"
           echo ""
@@ -351,33 +315,36 @@
           echo "       Enter the database password:"
           echo "       {{ db_password }}"
           echo ""
-          echo "2️⃣  INSTALLAZIONE WEB CONSOLE:"
-          echo "    sudo dpkg -i ksc-web-console.deb"
-          echo "    (il file ksc-web-console-setup.json è già in /etc/)"
+          echo "2ï¸âƒ£  POST-INSTALLAZIONE KSC SERVER:"
+          echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
           echo ""
-          echo "3️⃣  VERIFICA SERVIZI:"
+          echo "3ï¸âƒ£  INSTALLAZIONE WEB CONSOLE:"
+          echo "    sudo dpkg -i ksc-web-console.deb"
+          echo "    (il file ksc-web-console-setup.json Ã¨ giÃ  in /etc/)"
+          echo ""
+          echo "4ï¸âƒ£  VERIFICA SERVIZI:"
           echo "    sudo systemctl status klad* kl* KSC*"
           echo ""
-          echo "🌐 === ACCESSO ==="
+          echo "ðŸŒ === ACCESSO ==="
           echo "    Web Console: http://{{ ansible_default_ipv4.address }}:8080"
-          echo "    👤 Username: {{ web_admin_user }}"
-          echo "    🔑 Password: {{ web_admin_password }}"
+          echo "    ðŸ‘¤ Username: {{ web_admin_user }}"
+          echo "    ðŸ”‘ Password: {{ web_admin_password }}"
           echo
-          echo "🗄️ === DATABASE PRECONFIGURATO ==="
+          echo "ðŸ—„ï¸ === DATABASE PRECONFIGURATO ==="
           echo "    Host: localhost:5432"
           echo "    Database: KAV"  
           echo "    User: ksc"
           echo "    Password: {{ db_password }}"
           echo
-          echo "👥 === UTENTI SISTEMA CONFIGURATI ==="
+          echo "ðŸ‘¥ === UTENTI SISTEMA CONFIGURATI ==="
           echo "    - Gruppo: kladmins"
           echo "    - Utente: ksc (membro di kladmins)"
           echo "    - Password sistema ksc: {{ ksc_password }}"
           echo
-          echo "💡 === NOTE ==="
-          echo "    - PostgreSQL già ottimizzato per KSC"
-          echo "    - Utenti di sistema già creati e configurati"
-          echo "    - File configurazione Web Console già in /etc/"
+          echo "ðŸ’¡ === NOTE ==="
+          echo "    - PostgreSQL giÃ  ottimizzato per KSC"
+          echo "    - Utenti di sistema giÃ  creati e configurati"
+          echo "    - File configurazione Web Console giÃ  in /etc/"
           
         dest: /tmp/ksc_install/install-manual.sh
         mode: '0755'
@@ -385,37 +352,38 @@
         group: root
 
     # ===== RIEPILOGO FINALE =====
-    - name: "🎉 PREPARAZIONE COMPLETATA"
+    - name: "ðŸŽ‰ PREPARAZIONE COMPLETATA"
       debug:
         msg: |
           
-          ✅ SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC
+          âœ… SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC
           
-          📍 File preparati in: /tmp/ksc_install/
-          ✅ KSC Server: installato automaticamente
-          🎯 Web Console: ksc-web-console.deb (pronto per installazione)
-          ✅ Config Web Console: ksc-web-console-setup.json (già in /etc/)
-          🎯 Script helper: install-manual.sh
+          ðŸ“ File scaricati in: /tmp/ksc_install/
+          ðŸŽ¯ KSC Server: ksc64_{{ ksc_version }}_amd64.deb
+          ðŸŽ¯ Web Console: ksc-web-console.deb
+          ðŸŽ¯ Config Web Console: ksc-web-console-setup.json (giÃ  in /etc/)
+          ðŸŽ¯ Script helper: install-manual.sh
           
-          🗄️ PostgreSQL configurato e ottimizzato
-          👤 Database KAV creato con utente 'ksc'
-          🔧 Parametri ottimizzati per {{ ansible_memtotal_mb }}MB RAM
+          ðŸ—„ï¸ PostgreSQL configurato e ottimizzato
+          ðŸ‘¤ Database KAV creato con utente 'ksc'
+          ðŸ”§ Parametri ottimizzati per {{ ansible_memtotal_mb }}MB RAM
           
-          👥 Utenti sistema configurati
-          👤 Utente 'ksc' creato e aggiunto al gruppo 'kladmins'
-          🔐 Password utente ksc: {{ ksc_password }}
+          ðŸ‘¥ Utenti sistema configurati
+          ðŸ‘¤ Utente 'ksc' creato e aggiunto al gruppo 'kladmins'
+          ðŸ” Password utente ksc: {{ ksc_password }}
           
-          📋 PROSSIMI PASSI MANUALI:
+          ðŸ“‹ PROSSIMI PASSI MANUALI:
           1. ssh {{ inventory_hostname }}
           2. cd /tmp/ksc_install
           3. ./install-manual.sh  (per vedere i comandi dettagliati)
-          4. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl  (wizard configurazione)
-          5. Seguire wizard configurazione KSC con risposte indicate
-          6. sudo dpkg -i ksc-web-console.deb
+          4. sudo dpkg -i ksc64_{{ ksc_version }}_amd64.deb  (installazione interattiva)
+          5. Seguire wizard installazione con risposte indicate
+          6. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl
+          7. sudo dpkg -i ksc-web-console.deb
           
-          🌐 Web Console: http://{{ ansible_default_ipv4.address }}:8080
-          👤 Admin: {{ web_admin_user }} / {{ web_admin_password }}
-          🗄️ Database: ksc / {{ db_password }}
+          ðŸŒ Web Console: http://{{ ansible_default_ipv4.address }}:8080
+          ðŸ‘¤ Admin: {{ web_admin_user }} / {{ web_admin_password }}
+          ðŸ—„ï¸ Database: ksc / {{ db_password }}
 
   handlers:
     - name: restart postgresql
