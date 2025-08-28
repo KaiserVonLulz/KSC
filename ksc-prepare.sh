@@ -26,7 +26,7 @@ readonly INSTALL_DIR="/tmp/ksc_install"
 readonly KSC_DOWNLOAD_URL="https://products.s.kaspersky-labs.com/administrationkit/ksc10/15.4.0.8873/english-24733053-en/3939393939367c44454c7c31/ksc64_15.4.0-8873_amd64.deb"
 readonly WEB_CONSOLE_DOWNLOAD_URL="https://products.s.kaspersky-labs.com/administrationkit/ksc10/15.4.0.8952/english-25132578-en/313031343938397c44454c7c31/ksc-web-console-15.4.1021.x86_64.deb"
 
-# Credenziali (modifica secondo necessità)
+# Credenziali (modifica secondo necessitÃ )
 readonly KSC_PASSWORD="KSCAdmin123!"
 readonly DB_PASSWORD="KSCAdmin123!"
 readonly WEB_ADMIN_USER="Administrator"
@@ -88,8 +88,8 @@ check_system_resources() {
     local disk_gb=$(df / | awk 'NR==2 {printf "%.0f", $4/1024/1024}')
     
     log_info "Risorse sistema:"
-    echo "  - RAM: ${ram_mb}MB $([ $ram_mb -lt 4096 ] && echo -e "${YELLOW}(⚠️  Raccomandati almeno 4GB)${NC}" || echo -e "${GREEN}(✅ OK)${NC}")"
-    echo "  - CPU: ${cpu_cores} core$([ $cpu_cores -lt 2 ] && echo -e "${YELLOW}s (⚠️  Raccomandati almeno 2 core)${NC}" || echo -e "${GREEN}s (✅ OK)${NC}")"
+    echo "  - RAM: ${ram_mb}MB $([ $ram_mb -lt 4096 ] && echo -e "${YELLOW}(âš ï¸  Raccomandati almeno 4GB)${NC}" || echo -e "${GREEN}(âœ… OK)${NC}")"
+    echo "  - CPU: ${cpu_cores} core$([ $cpu_cores -lt 2 ] && echo -e "${YELLOW}s (âš ï¸  Raccomandati almeno 2 core)${NC}" || echo -e "${GREEN}s (âœ… OK)${NC}")"
     echo "  - Spazio: ${disk_gb}GB disponibili"
 }
 
@@ -203,7 +203,7 @@ setup_database() {
         groupadd --system kladmins
         log_success "Gruppo kladmins creato"
     else
-        log_info "Gruppo kladmins già esistente"
+        log_info "Gruppo kladmins giÃ  esistente"
     fi
     
     log_info "Creazione utente ksc..."
@@ -212,7 +212,7 @@ setup_database() {
         echo "ksc:${KSC_PASSWORD}" | chpasswd
         log_success "Utente ksc creato"
     else
-        log_info "Utente ksc già esistente"
+        log_info "Utente ksc giÃ  esistente"
         usermod -a -G kladmins ksc
         echo "ksc:${KSC_PASSWORD}" | chpasswd
     fi
@@ -262,7 +262,7 @@ download_packages() {
         wget --progress=dot:giga -O "$ksc_file" "$KSC_DOWNLOAD_URL"
         log_success "KSC Server scaricato: $ksc_file"
     else
-        log_info "KSC Server già presente: $ksc_file"
+        log_info "KSC Server giÃ  presente: $ksc_file"
     fi
     
     # Download Web Console  
@@ -272,10 +272,10 @@ download_packages() {
         wget --progress=dot:giga -O "$web_console_file" "$WEB_CONSOLE_DOWNLOAD_URL"
         log_success "Web Console scaricato: $web_console_file"
     else
-        log_info "Web Console già presente: $web_console_file"
+        log_info "Web Console giÃ  presente: $web_console_file"
     fi
     
-    # Verifica integrità file
+    # Verifica integritÃ  file
     if [[ -f "$ksc_file" && -f "$web_console_file" ]]; then
         local ksc_size=$(stat -c%s "$ksc_file")
         local web_size=$(stat -c%s "$web_console_file")
@@ -290,45 +290,6 @@ download_packages() {
             log_error "I file scaricati sembrano incompleti"
             exit 1
         fi
-    fi
-}
-
-install_ksc_package() {
-    log_section "INSTALLAZIONE PACCHETTO KSC"
-    
-    cd "$INSTALL_DIR"
-    
-    local ksc_file="ksc64_${KSC_VERSION}_amd64.deb"
-    
-    if [[ ! -f "$ksc_file" ]]; then
-        log_error "File KSC non trovato: $ksc_file"
-        exit 1
-    fi
-    
-    log_info "Installazione pacchetto KSC Server..."
-    log_warning "Durante l'installazione potrebbero apparire errori di dipendenze - verranno risolti automaticamente"
-    
-    # Installa il pacchetto KSC (ignora errori di dipendenze)
-    dpkg -i "$ksc_file" || true
-    
-    # Risolvi eventuali dipendenze mancanti
-    log_info "Risoluzione dipendenze..."
-    apt-get install -f -y
-    
-    # Verifica installazione
-    if dpkg -l | grep -q "ksc64"; then
-        log_success "Pacchetto KSC installato correttamente"
-    else
-        log_error "Errore installazione pacchetto KSC"
-        exit 1
-    fi
-    
-    # Verifica presenza file postinstall.pl
-    if [[ -f "/opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl" ]]; then
-        log_success "File postinstall.pl trovato e pronto per la configurazione"
-    else
-        log_error "File postinstall.pl non trovato"
-        exit 1
     fi
 }
 
@@ -360,101 +321,63 @@ EOF
     cat > install-manual.sh << 'EOF'
 #!/bin/bash
 
-echo "🚀 === GUIDA PROSSIMI PASSI MANUALI KSC ==="
+echo "ðŸš€ === GUIDA INSTALLAZIONE MANUALE KSC ==="
 echo
-echo "📍 Directory corrente: $(pwd)"
-echo "📦 File disponibili:"
+echo "ðŸ“ Directory corrente: $(pwd)"
+echo "ðŸ“¦ File disponibili:"
 ls -lh *.deb *.json 2>/dev/null || echo "Nessun file trovato"
 echo
-echo "✅ COMPLETATO AUTOMATICAMENTE:"
-echo "   - PostgreSQL configurato e ottimizzato"
-echo "   - Database KAV creato"
-echo "   - Utenti sistema (ksc, kladmins) configurati"
-echo "   - Pacchetto KSC Server installato"
-echo "   - File configurazione Web Console preparati"
+echo "ðŸ“‹ === PASSAGGI INSTALLAZIONE ==="
 echo
-echo "📋 === PASSI MANUALI RIMANENTI ==="
-echo
-echo "1️⃣  CONFIGURAZIONE KSC SERVER (WIZARD INTERATTIVO):"
-echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
-echo "    💡 Segui il wizard interattivo con queste risposte:"
+echo "1ï¸âƒ£  INSTALLAZIONE KSC SERVER (INTERATTIVA):"
+echo "    sudo dpkg -i ksc64_*_amd64.deb"
+echo "    ðŸ’¡ Segui il wizard interattivo con queste risposte:"
 echo ""
 echo "       EULA acceptance: Y"
+echo "       Installation mode: 1 (Standard)"
+echo "       DNS/IP address: ksc.365servizi.it"
+echo "       SSL port: 13000 (default)"
+echo "       Device count: 2 (101-1000 devices)"
+echo "       Security group: kladmins"
+echo "       Service account: ksc"
+echo "       Other services account: ksc"
+echo "       Database type: 2 (Postgres)"
+echo "       Database address: 127.0.0.1"
+echo "       Database port: 5432"
+echo "       Database name: KAV"
+echo "       Database login: ksc"
+echo "       Database password: KSCAdmin123!"
 echo ""
-echo "       Choose the Administration Server installation mode:"
-echo "       1) Standard"
-echo "       2) Primary cluster node"
-echo "       3) Secondary cluster node"
-echo "       Enter the range number (1, 2, or 3) [1]: 1"
+echo "2ï¸âƒ£  POST-INSTALLAZIONE KSC SERVER:"
+echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
 echo ""
-echo "       Enter Administration Server DNS-name or static IP-address:"
-echo "       ksc.365servizi.it"
-echo ""
-echo "       Enter Administration Server SSL port number [13000]:"
-echo "       (premi INVIO per default)"
-echo ""
-echo "       Define the approximate number of devices:"
-echo "       1) 1 to 100 networked devices"
-echo "       2) 101 to 1 000 networked devices"
-echo "       3) More than 1 000 networked devices"
-echo "       Enter the range number (1, 2, or 3) [1]: 2"
-echo ""
-echo "       Enter the security group name for services:"
-echo "       kladmins"
-echo ""
-echo "       Enter the account name to start the Administration Server service:"
-echo "       ksc"
-echo ""
-echo "       Enter the account name to start other services:"
-echo "       ksc"
-echo ""
-echo "       Choose the database type to connect to:"
-echo "       1) MySQL"
-echo "       2) Postgres"
-echo "       Enter the range number (1 or 2): 2"
-echo ""
-echo "       Enter the database address:"
-echo "       127.0.0.1"
-echo ""
-echo "       Enter the database port:"
-echo "       5432"
-echo ""
-echo "       Enter the database name:"
-echo "       KAV"
-echo ""
-echo "       Enter the database login:"
-echo "       ksc"
-echo ""
-echo "       Enter the database password:"
-echo "       KSCAdmin123!"
-echo ""
-echo "2️⃣  INSTALLAZIONE WEB CONSOLE:"
+echo "3ï¸âƒ£  INSTALLAZIONE WEB CONSOLE:"
 echo "    sudo dpkg -i ksc-web-console.deb"
-echo "    (il file ksc-web-console-setup.json è già in /etc/)"
+echo "    (il file ksc-web-console-setup.json Ã¨ giÃ  in /etc/)"
 echo ""
-echo "3️⃣  VERIFICA SERVIZI:"
+echo "4ï¸âƒ£  VERIFICA SERVIZI:"
 echo "    sudo systemctl status klad* kl* KSC*"
 echo ""
-echo "🌐 === ACCESSO ==="
+echo "ðŸŒ === ACCESSO ==="
 echo "    Web Console: http://\$(hostname -I | awk '{print \$1}'):8080"
-echo "    👤 Username: Administrator"
-echo "    🔑 Password: KSCAdmin123!"
+echo "    ðŸ‘¤ Username: Administrator"
+echo "    ðŸ”‘ Password: KSCAdmin123!"
 echo
-echo "🗄️ === DATABASE PRECONFIGURATO ==="
+echo "ðŸ—„ï¸ === DATABASE PRECONFIGURATO ==="
 echo "    Host: localhost:5432"
 echo "    Database: KAV"
 echo "    User: ksc"
 echo "    Password: KSCAdmin123!"
 echo
-echo "👥 === UTENTI SISTEMA CONFIGURATI ==="
+echo "ðŸ‘¥ === UTENTI SISTEMA CONFIGURATI ==="
 echo "    - Gruppo: kladmins"
 echo "    - Utente: ksc (membro di kladmins)"
 echo "    - Password sistema ksc: KSCAdmin123!"
 echo
-echo "💡 === NOTE ==="
-echo "    - PostgreSQL già ottimizzato per KSC"
-echo "    - Utenti di sistema già creati e configurati"
-echo "    - File configurazione Web Console già in /etc/"
+echo "ðŸ’¡ === NOTE ==="
+echo "    - PostgreSQL giÃ  ottimizzato per KSC"
+echo "    - Utenti di sistema giÃ  creati e configurati"
+echo "    - File configurazione Web Console giÃ  in /etc/"
 EOF
     
     chmod +x install-manual.sh
@@ -463,37 +386,38 @@ EOF
 }
 
 print_summary() {
-    log_section "🎉 PREPARAZIONE COMPLETATA"
+    log_section "ðŸŽ‰ PREPARAZIONE COMPLETATA"
     
-    echo -e "${GREEN}✅ SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC${NC}"
+    echo -e "${GREEN}âœ… SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC${NC}"
     echo
-    echo -e "${CYAN}📍 File preparati in: ${INSTALL_DIR}${NC}"
-    echo "   ✅ KSC Server: installato automaticamente"
-    echo "   🎯 Web Console: ksc-web-console.deb (pronto per installazione)"  
-    echo "   ✅ Config Web Console: ksc-web-console-setup.json (già copiato in /etc/)"
-    echo "   🎯 Script helper: install-manual.sh"
+    echo -e "${CYAN}ðŸ“ File preparati in: ${INSTALL_DIR}${NC}"
+    echo "   ðŸŽ¯ KSC Server: ksc64_${KSC_VERSION}_amd64.deb"
+    echo "   ðŸŽ¯ Web Console: ksc-web-console.deb"  
+    echo "   ðŸŽ¯ Config Web Console: ksc-web-console-setup.json (giÃ  copiato in /etc/)"
+    echo "   ðŸŽ¯ Script helper: install-manual.sh"
     echo
-    echo -e "${GREEN}🗄️ PostgreSQL configurato e ottimizzato${NC}"
-    echo "   👤 Database KAV creato con utente 'ksc'"
-    echo "   🔧 Parametri ottimizzati per la RAM disponibile"
-    echo "   ✅ Connessione testata"
+    echo -e "${GREEN}ðŸ—„ï¸ PostgreSQL configurato e ottimizzato${NC}"
+    echo "   ðŸ‘¤ Database KAV creato con utente 'ksc'"
+    echo "   ðŸ”§ Parametri ottimizzati per la RAM disponibile"
+    echo "   âœ… Connessione testata"
     echo
-    echo -e "${GREEN}👥 Utenti sistema configurati${NC}"
-    echo "   👤 Utente 'ksc' creato e aggiunto al gruppo 'kladmins'"
-    echo "   🔐 Password utente ksc: ${KSC_PASSWORD}"
+    echo -e "${GREEN}ðŸ‘¥ Utenti sistema configurati${NC}"
+    echo "   ðŸ‘¤ Utente 'ksc' creato e aggiunto al gruppo 'kladmins'"
+    echo "   ðŸ” Password utente ksc: ${KSC_PASSWORD}"
     echo
-    echo -e "${YELLOW}📋 PROSSIMI PASSI MANUALI:${NC}"
+    echo -e "${YELLOW}ðŸ“‹ PROSSIMI PASSI MANUALI:${NC}"
     echo "   1. cd $INSTALL_DIR"
     echo "   2. ./install-manual.sh  (per vedere le istruzioni dettagliate)"
-    echo "   3. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl  (wizard configurazione)"
-    echo "   4. Seguire wizard configurazione KSC con le risposte indicate"
-    echo "   5. sudo dpkg -i ksc-web-console.deb"
+    echo "   3. sudo dpkg -i ksc64_${KSC_VERSION}_amd64.deb  (installazione interattiva)"
+    echo "   4. Seguire wizard installazione KSC con le risposte indicate"
+    echo "   5. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
+    echo "   6. sudo dpkg -i ksc-web-console.deb"
     echo
-    echo -e "${CYAN}🌐 Web Console: http://$(hostname -I | awk '{print $1}'):8080${NC}"
-    echo -e "${CYAN}👤 Admin: ${WEB_ADMIN_USER} / ${WEB_ADMIN_PASSWORD}${NC}"
-    echo -e "${CYAN}🗄️ Database: ksc / ${DB_PASSWORD}${NC}"
+    echo -e "${CYAN}ðŸŒ Web Console: http://$(hostname -I | awk '{print $1}'):8080${NC}"
+    echo -e "${CYAN}ðŸ‘¤ Admin: ${WEB_ADMIN_USER} / ${WEB_ADMIN_PASSWORD}${NC}"
+    echo -e "${CYAN}ðŸ—„ï¸ Database: ksc / ${DB_PASSWORD}${NC}"
     echo
-    echo -e "${GREEN}🚀 Preparazione completata! Tempo risparmiato: ~15-20 minuti${NC}"
+    echo -e "${GREEN}ðŸš€ Preparazione completata! Tempo risparmiato: ~15-20 minuti${NC}"
 }
 
 #==============================================================================
@@ -501,7 +425,7 @@ print_summary() {
 #==============================================================================
 
 main() {
-    log_section "🚀 PREPARAZIONE SISTEMA PER KSC 15.x + POSTGRESQL"
+    log_section "ðŸš€ PREPARAZIONE SISTEMA PER KSC 15.x + POSTGRESQL"
     
     check_root
     check_ubuntu
@@ -511,7 +435,6 @@ main() {
     configure_postgresql  
     setup_database
     download_packages
-    install_ksc_package
     create_config_files
     
     print_summary
