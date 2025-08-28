@@ -1,5 +1,5 @@
 #!/bin/bash
-
+curl -sSl https://raw.githubusercontent.com/KaiserVonLulz/365/refs/heads/main/splash | bash
 #==============================================================================
 # Script di Preparazione per Installazione Manuale KSC 15.x + PostgreSQL
 # Versione: 2.0
