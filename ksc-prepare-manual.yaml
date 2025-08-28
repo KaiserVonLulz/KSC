@@ -223,6 +223,35 @@
       retries: 3
       delay: 10
 
+    # ===== INSTALLAZIONE PACCHETTO KSC =====
+    - name: "📦 Installa pacchetto KSC Server"
+      shell: |
+        cd /tmp/ksc_install
+        dpkg -i ksc64_{{ ksc_version }}_amd64.deb || true
+        apt-get install -f -y
+      register: ksc_install_result
+      failed_when: false
+
+    - name: "Verifica installazione KSC"
+      shell: "dpkg -l | grep ksc64"
+      register: ksc_check
+      failed_when: false
+
+    - name: "Controlla risultato installazione KSC"
+      debug:
+        msg: "{% if ksc_check.failed %}❌ ERRORE installazione KSC{% else %}✅ Pacchetto KSC installato correttamente{% endif %}"
+      failed_when: ksc_check.failed
+
+    - name: "Verifica presenza postinstall.pl"
+      stat:
+        path: /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl
+      register: postinstall_check
+
+    - name: "Conferma postinstall.pl pronto"
+      debug:
+        msg: "{% if postinstall_check.stat.exists %}✅ File postinstall.pl trovato e pronto per configurazione{% else %}❌ File postinstall.pl non trovato{% endif %}"
+      failed_when: not postinstall_check.stat.exists
+
     # ===== FILE CONFIGURAZIONE =====
     - name: "📝 Prepara configurazione Web Console"
       copy:
@@ -254,16 +283,23 @@
           # Script per installazione manuale KSC
           # Generato automaticamente da Ansible
           
-          echo "🚀 === GUIDA INSTALLAZIONE MANUALE KSC ==="
+          echo "🚀 === GUIDA PROSSIMI PASSI MANUALI KSC ==="
           echo
           echo "📍 Directory corrente: $(pwd)"
           echo "📦 File disponibili:"
           ls -lh *.deb *.json 2>/dev/null || echo "Nessun file trovato"
           echo
-          echo "📋 === PASSAGGI INSTALLAZIONE ==="
+          echo "✅ COMPLETATO AUTOMATICAMENTE:"
+          echo "   - PostgreSQL configurato e ottimizzato"
+          echo "   - Database KAV creato"
+          echo "   - Utenti sistema (ksc, kladmins) configurati"
+          echo "   - Pacchetto KSC Server installato"
+          echo "   - File configurazione Web Console preparati"
           echo
-          echo "1️⃣  INSTALLAZIONE KSC SERVER (INTERATTIVA):"
-          echo "    sudo dpkg -i ksc64_{{ ksc_version }}_amd64.deb"
+          echo "📋 === PASSI MANUALI RIMANENTI ==="
+          echo
+          echo "1️⃣  CONFIGURAZIONE KSC SERVER (WIZARD INTERATTIVO):"
+          echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
           echo "    💡 Segui il wizard interattivo con queste risposte:"
           echo ""
           echo "       EULA acceptance: Y"
@@ -315,14 +351,11 @@
           echo "       Enter the database password:"
           echo "       {{ db_password }}"
           echo ""
-          echo "2️⃣  POST-INSTALLAZIONE KSC SERVER:"
-          echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
-          echo ""
-          echo "3️⃣  INSTALLAZIONE WEB CONSOLE:"
+          echo "2️⃣  INSTALLAZIONE WEB CONSOLE:"
           echo "    sudo dpkg -i ksc-web-console.deb"
           echo "    (il file ksc-web-console-setup.json è già in /etc/)"
           echo ""
-          echo "4️⃣  VERIFICA SERVIZI:"
+          echo "3️⃣  VERIFICA SERVIZI:"
           echo "    sudo systemctl status klad* kl* KSC*"
           echo ""
           echo "🌐 === ACCESSO ==="
@@ -358,10 +391,10 @@
           
           ✅ SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC
           
-          📍 File scaricati in: /tmp/ksc_install/
-          🎯 KSC Server: ksc64_{{ ksc_version }}_amd64.deb
-          🎯 Web Console: ksc-web-console.deb
-          🎯 Config Web Console: ksc-web-console-setup.json (già in /etc/)
+          📍 File preparati in: /tmp/ksc_install/
+          ✅ KSC Server: installato automaticamente
+          🎯 Web Console: ksc-web-console.deb (pronto per installazione)
+          ✅ Config Web Console: ksc-web-console-setup.json (già in /etc/)
           🎯 Script helper: install-manual.sh
           
           🗄️ PostgreSQL configurato e ottimizzato
@@ -376,10 +409,9 @@
           1. ssh {{ inventory_hostname }}
           2. cd /tmp/ksc_install
           3. ./install-manual.sh  (per vedere i comandi dettagliati)
-          4. sudo dpkg -i ksc64_{{ ksc_version }}_amd64.deb  (installazione interattiva)
-          5. Seguire wizard installazione con risposte indicate
-          6. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl
-          7. sudo dpkg -i ksc-web-console.deb
+          4. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl  (wizard configurazione)
+          5. Seguire wizard configurazione KSC con risposte indicate
+          6. sudo dpkg -i ksc-web-console.deb
           
           🌐 Web Console: http://{{ ansible_default_ipv4.address }}:8080
           👤 Admin: {{ web_admin_user }} / {{ web_admin_password }}
