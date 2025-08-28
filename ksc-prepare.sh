@@ -1,5 +1,5 @@
 #!/bin/bash
-curl -sSl https://raw.githubusercontent.com/KaiserVonLulz/365/refs/heads/main/splash | bash
+
 #==============================================================================
 # Script di Preparazione per Installazione Manuale KSC 15.x + PostgreSQL
 # Versione: 2.0
@@ -293,6 +293,45 @@ download_packages() {
     fi
 }
 
+install_ksc_package() {
+    log_section "INSTALLAZIONE PACCHETTO KSC"
+    
+    cd "$INSTALL_DIR"
+    
+    local ksc_file="ksc64_${KSC_VERSION}_amd64.deb"
+    
+    if [[ ! -f "$ksc_file" ]]; then
+        log_error "File KSC non trovato: $ksc_file"
+        exit 1
+    fi
+    
+    log_info "Installazione pacchetto KSC Server..."
+    log_warning "Durante l'installazione potrebbero apparire errori di dipendenze - verranno risolti automaticamente"
+    
+    # Installa il pacchetto KSC (ignora errori di dipendenze)
+    dpkg -i "$ksc_file" || true
+    
+    # Risolvi eventuali dipendenze mancanti
+    log_info "Risoluzione dipendenze..."
+    apt-get install -f -y
+    
+    # Verifica installazione
+    if dpkg -l | grep -q "ksc64"; then
+        log_success "Pacchetto KSC installato correttamente"
+    else
+        log_error "Errore installazione pacchetto KSC"
+        exit 1
+    fi
+    
+    # Verifica presenza file postinstall.pl
+    if [[ -f "/opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl" ]]; then
+        log_success "File postinstall.pl trovato e pronto per la configurazione"
+    else
+        log_error "File postinstall.pl non trovato"
+        exit 1
+    fi
+}
+
 create_config_files() {
     log_section "CREAZIONE FILE CONFIGURAZIONE"
     
@@ -321,41 +360,79 @@ EOF
     cat > install-manual.sh << 'EOF'
 #!/bin/bash
 
-echo "🚀 === GUIDA INSTALLAZIONE MANUALE KSC ==="
+echo "🚀 === GUIDA PROSSIMI PASSI MANUALI KSC ==="
 echo
 echo "📍 Directory corrente: $(pwd)"
 echo "📦 File disponibili:"
 ls -lh *.deb *.json 2>/dev/null || echo "Nessun file trovato"
 echo
-echo "📋 === PASSAGGI INSTALLAZIONE ==="
+echo "✅ COMPLETATO AUTOMATICAMENTE:"
+echo "   - PostgreSQL configurato e ottimizzato"
+echo "   - Database KAV creato"
+echo "   - Utenti sistema (ksc, kladmins) configurati"
+echo "   - Pacchetto KSC Server installato"
+echo "   - File configurazione Web Console preparati"
 echo
-echo "1️⃣  INSTALLAZIONE KSC SERVER (INTERATTIVA):"
-echo "    sudo dpkg -i ksc64_*_amd64.deb"
+echo "📋 === PASSI MANUALI RIMANENTI ==="
+echo
+echo "1️⃣  CONFIGURAZIONE KSC SERVER (WIZARD INTERATTIVO):"
+echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
 echo "    💡 Segui il wizard interattivo con queste risposte:"
 echo ""
 echo "       EULA acceptance: Y"
-echo "       Installation mode: 1 (Standard)"
-echo "       DNS/IP address: ksc.365servizi.it"
-echo "       SSL port: 13000 (default)"
-echo "       Device count: 2 (101-1000 devices)"
-echo "       Security group: kladmins"
-echo "       Service account: ksc"
-echo "       Other services account: ksc"
-echo "       Database type: 2 (Postgres)"
-echo "       Database address: 127.0.0.1"
-echo "       Database port: 5432"
-echo "       Database name: KAV"
-echo "       Database login: ksc"
-echo "       Database password: KSCAdmin123!"
 echo ""
-echo "2️⃣  POST-INSTALLAZIONE KSC SERVER:"
-echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
+echo "       Choose the Administration Server installation mode:"
+echo "       1) Standard"
+echo "       2) Primary cluster node"
+echo "       3) Secondary cluster node"
+echo "       Enter the range number (1, 2, or 3) [1]: 1"
 echo ""
-echo "3️⃣  INSTALLAZIONE WEB CONSOLE:"
+echo "       Enter Administration Server DNS-name or static IP-address:"
+echo "       ksc.365servizi.it"
+echo ""
+echo "       Enter Administration Server SSL port number [13000]:"
+echo "       (premi INVIO per default)"
+echo ""
+echo "       Define the approximate number of devices:"
+echo "       1) 1 to 100 networked devices"
+echo "       2) 101 to 1 000 networked devices"
+echo "       3) More than 1 000 networked devices"
+echo "       Enter the range number (1, 2, or 3) [1]: 2"
+echo ""
+echo "       Enter the security group name for services:"
+echo "       kladmins"
+echo ""
+echo "       Enter the account name to start the Administration Server service:"
+echo "       ksc"
+echo ""
+echo "       Enter the account name to start other services:"
+echo "       ksc"
+echo ""
+echo "       Choose the database type to connect to:"
+echo "       1) MySQL"
+echo "       2) Postgres"
+echo "       Enter the range number (1 or 2): 2"
+echo ""
+echo "       Enter the database address:"
+echo "       127.0.0.1"
+echo ""
+echo "       Enter the database port:"
+echo "       5432"
+echo ""
+echo "       Enter the database name:"
+echo "       KAV"
+echo ""
+echo "       Enter the database login:"
+echo "       ksc"
+echo ""
+echo "       Enter the database password:"
+echo "       KSCAdmin123!"
+echo ""
+echo "2️⃣  INSTALLAZIONE WEB CONSOLE:"
 echo "    sudo dpkg -i ksc-web-console.deb"
 echo "    (il file ksc-web-console-setup.json è già in /etc/)"
 echo ""
-echo "4️⃣  VERIFICA SERVIZI:"
+echo "3️⃣  VERIFICA SERVIZI:"
 echo "    sudo systemctl status klad* kl* KSC*"
 echo ""
 echo "🌐 === ACCESSO ==="
@@ -391,9 +468,9 @@ print_summary() {
     echo -e "${GREEN}✅ SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC${NC}"
     echo
     echo -e "${CYAN}📍 File preparati in: ${INSTALL_DIR}${NC}"
-    echo "   🎯 KSC Server: ksc64_${KSC_VERSION}_amd64.deb"
-    echo "   🎯 Web Console: ksc-web-console.deb"  
-    echo "   🎯 Config Web Console: ksc-web-console-setup.json (già copiato in /etc/)"
+    echo "   ✅ KSC Server: installato automaticamente"
+    echo "   🎯 Web Console: ksc-web-console.deb (pronto per installazione)"  
+    echo "   ✅ Config Web Console: ksc-web-console-setup.json (già copiato in /etc/)"
     echo "   🎯 Script helper: install-manual.sh"
     echo
     echo -e "${GREEN}🗄️ PostgreSQL configurato e ottimizzato${NC}"
@@ -408,10 +485,9 @@ print_summary() {
     echo -e "${YELLOW}📋 PROSSIMI PASSI MANUALI:${NC}"
     echo "   1. cd $INSTALL_DIR"
     echo "   2. ./install-manual.sh  (per vedere le istruzioni dettagliate)"
-    echo "   3. sudo dpkg -i ksc64_${KSC_VERSION}_amd64.deb  (installazione interattiva)"
-    echo "   4. Seguire wizard installazione KSC con le risposte indicate"
-    echo "   5. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
-    echo "   6. sudo dpkg -i ksc-web-console.deb"
+    echo "   3. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl  (wizard configurazione)"
+    echo "   4. Seguire wizard configurazione KSC con le risposte indicate"
+    echo "   5. sudo dpkg -i ksc-web-console.deb"
     echo
     echo -e "${CYAN}🌐 Web Console: http://$(hostname -I | awk '{print $1}'):8080${NC}"
     echo -e "${CYAN}👤 Admin: ${WEB_ADMIN_USER} / ${WEB_ADMIN_PASSWORD}${NC}"
@@ -435,6 +511,7 @@ main() {
     configure_postgresql  
     setup_database
     download_packages
+    install_ksc_package
     create_config_files
     
     print_summary
