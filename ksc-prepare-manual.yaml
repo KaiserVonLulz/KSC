@@ -1,0 +1,393 @@
+---
+- name: "Preparazione sistema per installazione manuale KSC 15.x con PostgreSQL"
+  hosts: ksc_servers
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Credenziali (modifica secondo necessità)
+    ksc_password: "KSCAdmin123!"
+    db_password: "KSCAdmin123!"
+    web_admin_user: "Administrator"
+    web_admin_password: "KSCAdmin123!"
+    
+    # URL download pacchetti
+    ksc_version: "15.4.0-8873"
+    ksc_download_url: "https://products.s.kaspersky-labs.com/administrationkit/ksc10/15.4.0.8873/english-24733053-en/3939393939367c44454c7c31/ksc64_15.4.0-8873_amd64.deb"
+    web_console_download_url: "https://products.s.kaspersky-labs.com/administrationkit/ksc10/15.4.0.8952/english-25132578-en/313031343938397c44454c7c31/ksc-web-console-15.4.1021.x86_64.deb"
+
+  tasks:
+    - name: "📋 INIZIO PREPARAZIONE SISTEMA"
+      debug:
+        msg: |
+          🚀 Avvio preparazione sistema per KSC {{ ksc_version }}
+          🎯 Target: {{ inventory_hostname }}
+          🗄️ Database: PostgreSQL
+          👤 Admin: {{ web_admin_user }}
+
+    # ===== VERIFICA SISTEMA =====
+    - name: "Verifica sistema operativo"
+      assert:
+        that:
+          - ansible_os_family == "Debian"
+          - ansible_distribution == "Ubuntu"
+        fail_msg: "Sistema operativo non supportato. Richiesto Ubuntu."
+        success_msg: "✅ Sistema operativo compatibile: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: "Verifica requisiti sistema"
+      debug:
+        msg: |
+          Sistema rilevato:
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - RAM: {{ ansible_memtotal_mb }}MB {% if ansible_memtotal_mb < 4096 %}(⚠️  Raccomandati almeno 4GB){% else %}(✅ OK){% endif %}
+          - CPU: {{ ansible_processor_vcpus }} core{% if ansible_processor_vcpus < 2 %}s (⚠️  Raccomandati almeno 2 core){% else %}s (✅ OK){% endif %}
+          - Spazio: {{ (ansible_mounts | selectattr('mount', 'equalto', '/') | first).size_available // 1024**3 }}GB disponibili
+
+    # ===== AGGIORNAMENTO SISTEMA =====
+    - name: "Aggiorna indice pacchetti APT"
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: "Installa pacchetti prerequisiti"
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - python3-psycopg2
+          - curl
+          - wget
+        state: present
+
+    - name: "Avvia e abilita PostgreSQL"
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    # ===== CONFIGURAZIONE POSTGRESQL =====
+    - name: "Rileva versione PostgreSQL"
+      shell: "psql --version | awk '{print $3}' | sed 's/\\..*//' "
+      register: pg_version_output
+      changed_when: false
+
+    - name: "Imposta path configurazione PostgreSQL"
+      set_fact:
+        pg_config_path: "/etc/postgresql/{{ pg_version_output.stdout }}/main"
+
+    - name: "Calcola parametri ottimali PostgreSQL"
+      set_fact:
+        shared_buffers_mb: "{{ (ansible_memtotal_mb * 0.25) | int }}"
+        effective_cache_size_mb: "{{ (ansible_memtotal_mb * 0.75) | int }}"
+        maintenance_work_mem_mb: "{{ (ansible_memtotal_mb * 0.05) | int }}"
+        wal_buffers_mb: "16"
+
+    - name: "✅ Ottimizza configurazione PostgreSQL per KSC"
+      blockinfile:
+        path: "{{ pg_config_path }}/postgresql.conf"
+        block: |
+          # === KSC Optimizations ===
+          shared_buffers = {{ shared_buffers_mb }}MB
+          effective_cache_size = {{ effective_cache_size_mb }}MB
+          maintenance_work_mem = {{ maintenance_work_mem_mb }}MB
+          wal_buffers = {{ wal_buffers_mb }}MB
+          
+          # KSC Required Settings
+          max_connections = 151
+          temp_buffers = 24MB
+          work_mem = 16MB
+          max_parallel_workers_per_gather = 0
+          maintenance_work_mem = 128MB
+          standard_conforming_strings = on
+          
+          # Performance tuning
+          checkpoint_completion_target = 0.9
+          wal_level = replica
+          random_page_cost = 1.1
+          effective_io_concurrency = 200
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - KSC Settings"
+        backup: yes
+        create: yes
+      notify: restart postgresql
+
+    - name: "Configura autenticazione PostgreSQL"
+      blockinfile:
+        path: "{{ pg_config_path }}/pg_hba.conf"
+        insertafter: "# Database administrative login by Unix domain socket"
+        block: |
+          # KSC Database Access
+          local   KAV         ksc                                     md5
+          host    KAV         ksc         127.0.0.1/32            md5
+          host    KAV         ksc         ::1/128                 md5
+        marker: "# {mark} ANSIBLE MANAGED BLOCK - KSC Access"
+        backup: yes
+      notify: restart postgresql
+
+    # ===== SETUP DATABASE E UTENTI =====
+    - name: "Attendi riavvio PostgreSQL"
+      meta: flush_handlers
+
+    - name: "Attendi che PostgreSQL sia pronto"
+      wait_for:
+        port: 5432
+        host: localhost
+        timeout: 30
+
+    - name: "Crea gruppo sistema kladmins"
+      group:
+        name: kladmins
+        state: present
+        system: yes
+
+    - name: "Crea utente sistema ksc"
+      user:
+        name: ksc
+        group: kladmins
+        groups: kladmins
+        append: yes
+        home: /home/ksc
+        create_home: yes
+        shell: /bin/bash
+        password: "{{ ksc_password | password_hash('sha512') }}"
+        state: present
+
+    - name: "Configura membership gruppi per utente ksc"
+      shell: |
+        gpasswd -a ksc kladmins
+        usermod -g kladmins ksc
+      register: user_group_result
+      changed_when: true
+
+    - name: "✅ Crea utente PostgreSQL per KSC"
+      shell: |
+        sudo -u postgres psql -c "CREATE USER ksc WITH PASSWORD '{{ db_password }}' CREATEDB;" || 
+        sudo -u postgres psql -c "ALTER USER ksc WITH PASSWORD '{{ db_password }}' CREATEDB;"
+      register: create_user_result
+      failed_when: false
+      changed_when: "'CREATE ROLE' in create_user_result.stdout"
+
+    - name: "✅ Crea database KAV"
+      shell: |
+        sudo -u postgres psql -c "CREATE DATABASE \"KAV\" OWNER ksc ENCODING 'UTF-8' LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8' TEMPLATE template0;" ||
+        sudo -u postgres psql -c "ALTER DATABASE \"KAV\" OWNER TO ksc;"
+      register: create_db_result
+      failed_when: false
+      changed_when: "'CREATE DATABASE' in create_db_result.stdout"
+
+    - name: "Concedi privilegi database KAV"
+      shell: |
+        sudo -u postgres psql -d KAV -c "GRANT ALL PRIVILEGES ON DATABASE \"KAV\" TO ksc;"
+      register: grant_privs_result
+      failed_when: false
+      changed_when: "'GRANT' in grant_privs_result.stdout"
+
+    - name: "✅ Verifica connessione database"
+      shell: |
+        PGPASSWORD='{{ db_password }}' psql -h localhost -U ksc -d KAV -c "SELECT version();"
+      register: db_test
+      failed_when: false
+
+    - name: "Controlla risultato connessione DB"
+      debug:
+        msg: "{% if db_test.failed %}❌ ERRORE connessione DB{% else %}✅ Database configurato correttamente{% endif %}"
+      failed_when: db_test.failed
+
+    # ===== DOWNLOAD PACCHETTI =====
+    - name: "Crea directory installazione"
+      file:
+        path: /tmp/ksc_install
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: "⬇️  Scarica pacchetto KSC Server ({{ (ksc_download_url.split('/')[-1].split('_')[1]) }})"
+      get_url:
+        url: "{{ ksc_download_url }}"
+        dest: "/tmp/ksc_install/ksc64_{{ ksc_version }}_amd64.deb"
+        timeout: 600
+        validate_certs: yes
+      register: ksc_download_result
+      until: ksc_download_result is succeeded
+      retries: 3
+      delay: 10
+
+    - name: "⬇️  Scarica pacchetto Web Console"
+      get_url:
+        url: "{{ web_console_download_url }}"
+        dest: "/tmp/ksc_install/ksc-web-console.deb"
+        timeout: 600
+        validate_certs: yes
+      register: web_download_result
+      until: web_download_result is succeeded
+      retries: 3
+      delay: 10
+
+    # ===== FILE CONFIGURAZIONE =====
+    - name: "📝 Prepara configurazione Web Console"
+      copy:
+        content: |
+          {
+            "address": "127.0.0.1",
+            "port": 8080,
+            "trusted": "127.0.0.1|13299|/var/opt/kaspersky/klnagent_srv/1093/cert/klserver.cer|KSC Server",
+            "acceptEula": true
+          }
+        dest: /tmp/ksc_install/ksc-web-console-setup.json
+        mode: '0644'
+        owner: root
+        group: root
+
+    - name: "📝 Copia configurazione Web Console in /etc/"
+      copy:
+        src: /tmp/ksc_install/ksc-web-console-setup.json
+        dest: /etc/ksc-web-console-setup.json
+        mode: '0644'
+        owner: root
+        group: root
+        remote_src: yes
+
+    - name: "📝 Crea script installazione manuale"
+      copy:
+        content: |
+          #!/bin/bash
+          # Script per installazione manuale KSC
+          # Generato automaticamente da Ansible
+          
+          echo "🚀 === GUIDA INSTALLAZIONE MANUALE KSC ==="
+          echo
+          echo "📍 Directory corrente: $(pwd)"
+          echo "📦 File disponibili:"
+          ls -lh *.deb *.json 2>/dev/null || echo "Nessun file trovato"
+          echo
+          echo "📋 === PASSAGGI INSTALLAZIONE ==="
+          echo
+          echo "1️⃣  INSTALLAZIONE KSC SERVER (INTERATTIVA):"
+          echo "    sudo dpkg -i ksc64_{{ ksc_version }}_amd64.deb"
+          echo "    💡 Segui il wizard interattivo con queste risposte:"
+          echo ""
+          echo "       EULA acceptance: Y"
+          echo ""
+          echo "       Choose the Administration Server installation mode:"
+          echo "       1) Standard"
+          echo "       2) Primary cluster node" 
+          echo "       3) Secondary cluster node"
+          echo "       Enter the range number (1, 2, or 3) [1]: 1"
+          echo ""
+          echo "       Enter Administration Server DNS-name or static IP-address:"
+          echo "       ksc.365servizi.it"
+          echo ""
+          echo "       Enter Administration Server SSL port number [13000]:"
+          echo "       (premi INVIO per default)"
+          echo ""
+          echo "       Define the approximate number of devices:"
+          echo "       1) 1 to 100 networked devices"
+          echo "       2) 101 to 1 000 networked devices"  
+          echo "       3) More than 1 000 networked devices"
+          echo "       Enter the range number (1, 2, or 3) [1]: 2"
+          echo ""
+          echo "       Enter the security group name for services:"
+          echo "       kladmins"
+          echo ""
+          echo "       Enter the account name to start the Administration Server service:"
+          echo "       ksc"
+          echo ""
+          echo "       Enter the account name to start other services:"
+          echo "       ksc"
+          echo ""
+          echo "       Choose the database type to connect to:"
+          echo "       1) MySQL"
+          echo "       2) Postgres"
+          echo "       Enter the range number (1 or 2): 2"
+          echo ""
+          echo "       Enter the database address:"
+          echo "       127.0.0.1"
+          echo ""
+          echo "       Enter the database port:"
+          echo "       5432"
+          echo ""
+          echo "       Enter the database name:"
+          echo "       KAV"
+          echo ""
+          echo "       Enter the database login:"
+          echo "       ksc"
+          echo ""
+          echo "       Enter the database password:"
+          echo "       {{ db_password }}"
+          echo ""
+          echo "2️⃣  POST-INSTALLAZIONE KSC SERVER:"
+          echo "    sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl"
+          echo ""
+          echo "3️⃣  INSTALLAZIONE WEB CONSOLE:"
+          echo "    sudo dpkg -i ksc-web-console.deb"
+          echo "    (il file ksc-web-console-setup.json è già in /etc/)"
+          echo ""
+          echo "4️⃣  VERIFICA SERVIZI:"
+          echo "    sudo systemctl status klad* kl* KSC*"
+          echo ""
+          echo "🌐 === ACCESSO ==="
+          echo "    Web Console: http://{{ ansible_default_ipv4.address }}:8080"
+          echo "    👤 Username: {{ web_admin_user }}"
+          echo "    🔑 Password: {{ web_admin_password }}"
+          echo
+          echo "🗄️ === DATABASE PRECONFIGURATO ==="
+          echo "    Host: localhost:5432"
+          echo "    Database: KAV"  
+          echo "    User: ksc"
+          echo "    Password: {{ db_password }}"
+          echo
+          echo "👥 === UTENTI SISTEMA CONFIGURATI ==="
+          echo "    - Gruppo: kladmins"
+          echo "    - Utente: ksc (membro di kladmins)"
+          echo "    - Password sistema ksc: {{ ksc_password }}"
+          echo
+          echo "💡 === NOTE ==="
+          echo "    - PostgreSQL già ottimizzato per KSC"
+          echo "    - Utenti di sistema già creati e configurati"
+          echo "    - File configurazione Web Console già in /etc/"
+          
+        dest: /tmp/ksc_install/install-manual.sh
+        mode: '0755'
+        owner: root
+        group: root
+
+    # ===== RIEPILOGO FINALE =====
+    - name: "🎉 PREPARAZIONE COMPLETATA"
+      debug:
+        msg: |
+          
+          ✅ SISTEMA PREPARATO PER INSTALLAZIONE MANUALE KSC
+          
+          📍 File scaricati in: /tmp/ksc_install/
+          🎯 KSC Server: ksc64_{{ ksc_version }}_amd64.deb
+          🎯 Web Console: ksc-web-console.deb
+          🎯 Config Web Console: ksc-web-console-setup.json (già in /etc/)
+          🎯 Script helper: install-manual.sh
+          
+          🗄️ PostgreSQL configurato e ottimizzato
+          👤 Database KAV creato con utente 'ksc'
+          🔧 Parametri ottimizzati per {{ ansible_memtotal_mb }}MB RAM
+          
+          👥 Utenti sistema configurati
+          👤 Utente 'ksc' creato e aggiunto al gruppo 'kladmins'
+          🔐 Password utente ksc: {{ ksc_password }}
+          
+          📋 PROSSIMI PASSI MANUALI:
+          1. ssh {{ inventory_hostname }}
+          2. cd /tmp/ksc_install
+          3. ./install-manual.sh  (per vedere i comandi dettagliati)
+          4. sudo dpkg -i ksc64_{{ ksc_version }}_amd64.deb  (installazione interattiva)
+          5. Seguire wizard installazione con risposte indicate
+          6. sudo /opt/kaspersky/ksc64/lib/bin/setup/postinstall.pl
+          7. sudo dpkg -i ksc-web-console.deb
+          
+          🌐 Web Console: http://{{ ansible_default_ipv4.address }}:8080
+          👤 Admin: {{ web_admin_user }} / {{ web_admin_password }}
+          🗄️ Database: ksc / {{ db_password }}
+
+  handlers:
+    - name: restart postgresql
+      systemd:
+        name: postgresql
+        state: restarted
+        daemon_reload: yes
